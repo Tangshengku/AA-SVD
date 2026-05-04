@@ -720,6 +720,14 @@ def collect_gram_matrix(
 
 def apply_compression_parallel(config: Dict, model: torch.nn.Module, modules_to_replace, calibration_dataloader, test_calibration_dataloader, allocations, device) -> torch.nn.Module:
     save_path = getattr(config, 'save_path', None) # Path to save the compressed model
+    load_path = save_path
+    if getattr(config, '_ignore_saved_modules', False):
+        logger.info(
+            "Ignoring saved compressed modules at %s because they do not match "
+            "the current rank configuration.",
+            save_path,
+        )
+        load_path = None
     dobi_remapping = getattr(config, 'dobi_remapping', False)
     finetune_cfg = getattr(config, 'finetune', defaultdict(lambda: None))
     finetune_layers = finetune_cfg['enabled']
@@ -777,7 +785,7 @@ def apply_compression_parallel(config: Dict, model: torch.nn.Module, modules_to_
         layer_adapter_clone = layer_adapter.clone()
         layer_adapter_clone.layer.to(device)
 
-        not_finetuned = model_adapter.load(save_path, layer_adapter=layer_adapter, layer_idx=idx, dobi_remapping=dobi_remapping)
+        not_finetuned = model_adapter.load(load_path, layer_adapter=layer_adapter, layer_idx=idx, dobi_remapping=dobi_remapping)
 
         args_hat = []
         for i, inp in enumerate(inps):

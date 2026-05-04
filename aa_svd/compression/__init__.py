@@ -6,6 +6,7 @@ from typing import Dict, Union
 import torch
 import torch.nn as nn
 import wandb
+from omegaconf import DictConfig, open_dict
 from transformers import PreTrainedModel
 
 from ..utils import get_device
@@ -55,6 +56,7 @@ def load_complete_compressed_checkpoint(
     normal compression path.
     """
     save_path = getattr(config, 'save_path', None)
+    _set_config_flag(config, '_ignore_saved_modules', False)
     if save_path is None or not os.path.isdir(save_path):
         return False
 
@@ -62,7 +64,9 @@ def load_complete_compressed_checkpoint(
     if not modules_to_replace:
         return False
 
+    expected_ranks = _expected_checkpoint_ranks(model, config, modules_to_replace)
     missing = []
+    mismatched_ranks = []
     for module_name in modules_to_replace:
         module_dir = os.path.join(save_path, module_name.replace('.', '_'))
         has_plain_weights = (
@@ -75,6 +79,12 @@ def load_complete_compressed_checkpoint(
         )
         if not (has_plain_weights or has_quantized_weights):
             missing.append(module_name)
+            continue
+
+        saved_rank = _saved_checkpoint_rank(module_dir, has_plain_weights)
+        expected_rank = expected_ranks[module_name]
+        if saved_rank != expected_rank:
+            mismatched_ranks.append((module_name, saved_rank, expected_rank))
 
     if missing:
         logger.info(
@@ -83,6 +93,21 @@ def load_complete_compressed_checkpoint(
             len(missing),
             len(modules_to_replace),
         )
+        return False
+
+    if mismatched_ranks:
+        first_name, first_saved, first_expected = mismatched_ranks[0]
+        logger.info(
+            "Compressed checkpoint at %s does not match current rank config; "
+            "%d/%d modules differ. First mismatch: %s saved rank=%s, expected rank=%s.",
+            save_path,
+            len(mismatched_ranks),
+            len(modules_to_replace),
+            first_name,
+            first_saved,
+            first_expected,
+        )
+        _set_config_flag(config, '_ignore_saved_modules', True)
         return False
 
     loader = (
@@ -122,6 +147,63 @@ def load_complete_compressed_checkpoint(
         save_path,
     )
     return True
+
+
+def _set_config_flag(config: Dict, key: str, value: bool) -> None:
+    if isinstance(config, DictConfig):
+        with open_dict(config):
+            config[key] = value
+    elif isinstance(config, dict):
+        config[key] = value
+    else:
+        setattr(config, key, value)
+
+
+def _expected_checkpoint_ranks(
+    model: nn.Module,
+    config: Dict,
+    modules_to_replace: list[str],
+) -> dict[str, int]:
+    target_param_ratio = getattr(config, 'target_param_ratio', 0.3)
+    rank_allocation_file_path = getattr(config, 'rank_allocation_file_path', None)
+    if rank_allocation_file_path is not None:
+        with open(rank_allocation_file_path, 'r') as f:
+            allocations = json.load(f)
+    else:
+        allocations = {
+            name: target_param_ratio for name in modules_to_replace
+        }
+
+    dobi_remapping = getattr(config, 'dobi_remapping', False)
+    dense_modules = dict(model.named_modules())
+    return {
+        name: _rank_from_ratio(
+            dense_modules[name].weight,
+            allocations[name],
+            dobi_remapping,
+        )
+        for name in modules_to_replace
+    }
+
+
+def _rank_from_ratio(
+    weight: torch.Tensor,
+    ratio: float,
+    dobi_remapping: bool,
+) -> int:
+    if ratio is None or ratio <= 0:
+        raise ValueError(f"Invalid ratio {ratio}. Must be greater than 0.")
+    if ratio >= 1.0:
+        return min(weight.shape)
+    rows, cols = weight.shape
+    denominator = max(rows, cols) if dobi_remapping else rows + cols
+    return int(ratio * rows * cols / denominator)
+
+
+def _saved_checkpoint_rank(module_dir: str, has_plain_weights: bool) -> int:
+    tensor_name = 'U.pt' if has_plain_weights else 'UK_q.pt'
+    tensor = torch.load(os.path.join(module_dir, tensor_name), map_location='cpu')
+    return tensor.shape[1]
 
 
 def apply_compression(

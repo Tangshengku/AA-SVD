@@ -199,6 +199,8 @@ class ModelAdapter(ABC):
         self._modules_to_replace = modules_to_replace
 
     def load(self, path: str, layer_adapter=None, layer_idx=None, dobi_remapping=False) -> None:
+        if path is None:
+            return True
 
         if layer_adapter is None:
             modules_to_replace = self._modules_to_replace
