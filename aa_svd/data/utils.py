@@ -1,5 +1,6 @@
 import os
 import random
+import json
 from typing import Any, Optional
 
 import numpy as np
@@ -111,13 +112,34 @@ def _apply_preprocessing(
         raise ValueError(f"Unsupported preprocessing task type: {task_type}")
 
 
-def save_dataset_to_disk(dataset, dir_path):
+def _token_dtype(tokenizer: Optional[Any] = None):
+    if tokenizer is None:
+        return np.uint16
+
+    vocab_size = getattr(tokenizer, "vocab_size", None)
+    try:
+        tokenizer_size = len(tokenizer)
+    except Exception:
+        tokenizer_size = None
+
+    sizes = [x for x in [vocab_size, tokenizer_size] if x is not None]
+    if not sizes:
+        return np.uint16
+
+    max_token_id = max(sizes)
+    return np.uint32 if max_token_id > np.iinfo(np.uint16).max else np.uint16
+
+
+def save_dataset_to_disk(dataset, dir_path, tokenizer: Optional[Any] = None):
     os.makedirs(dir_path, exist_ok=True)
+    dtype = _token_dtype(tokenizer)
+    with open(os.path.join(dir_path, "meta.json"), "w") as f:
+        json.dump({"dtype": np.dtype(dtype).name}, f)
+
     for split, dset in dataset.items():
         arr_len = np.sum(dset['len'], dtype=np.uint64)
         filename = os.path.join(dir_path, f'{split}.bin')
-        dtype = np.uint16
-        arr = np.memmap(filename, dtype=dtype, mode='w+', shape=(arr_len,))
+        arr = np.memmap(filename, dtype=dtype, mode='w+', shape=(int(arr_len),))
         total_batches = min(1024, len(dset))
         idx = 0
         desc = f'writing {filename}'

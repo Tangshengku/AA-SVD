@@ -2,7 +2,7 @@
 
 defaults:
   - model: llama-7B
-  - data: wikitext2
+  - data: wikitext2-evol-codealpaca-tulu-math
   - paths: default
   - compression: compress
   - override hydra/job_logging: colorlog
@@ -36,4 +36,3 @@ hydra:
     dir: ${paths.output_dir}/${model.name}/${now:%Y-%m-%d}/${now:%H-%M-%S}/${random_id:6}
   job:
     chdir: true  # Change working directory to Hydra output dir so logs land there
-

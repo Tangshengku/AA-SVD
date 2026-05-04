@@ -20,6 +20,8 @@ python main.py model=llama-7B data=wikitext2 compression.target_param_ratio=0.8
 ```
 
 `target_param_ratio` controls the fraction of parameters retained after compression (e.g. `0.8` retains 80%).
+By default, calibration uses the `wikitext2-evol-codealpaca-tulu-math` mixture, which combines WikiText-2,
+`theblackcat102/evol-codealpaca-v1`, and `allenai/tulu-3-sft-personas-math`.
 
 **Other examples:**
 
@@ -29,6 +31,12 @@ python main.py model=llama2-13B data=c4 compression.target_param_ratio=0.7
 
 # Qwen2.5-7B
 python main.py model=qwen2.5-7B data=wikitext2 compression.target_param_ratio=0.8
+
+# Qwen3-8B on mixed calibration data
+python main.py model=qwen3-8B data=wikitext2-evol-codealpaca-tulu-math compression.target_param_ratio=0.8
+
+# Mistral-7B-v0.3 on mixed calibration data
+python main.py model=mistral-7B data=wikitext2-evol-codealpaca-tulu-math compression.target_param_ratio=0.8
 
 # Evaluate dense model (no compression)
 python main.py model=llama-7B compression.sub_method=no-compress
@@ -134,6 +142,8 @@ Model configs in `config/model/` use HuggingFace model IDs (e.g. `meta-llama/Lla
 ### Adding a new calibration dataset
 
 Add a data config at `config/data/<dataset-name>.yaml`, following [config/data/wikitext2.yaml](config/data/wikitext2.yaml).
+For mixed calibration data, use `type: huggingface_mixture` as in
+[config/data/wikitext2-evol-codealpaca-tulu-math.yaml](config/data/wikitext2-evol-codealpaca-tulu-math.yaml).
 
 ### Changing evaluation
 

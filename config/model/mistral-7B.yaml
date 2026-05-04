@@ -1,0 +1,8 @@
+type: hf_pretrained
+task: causal_lm
+name: mistralai/Mistral-7B-v0.3
+
+dtype: bfloat16
+device_map: cuda
+revision: main
+trust_remote_code: false

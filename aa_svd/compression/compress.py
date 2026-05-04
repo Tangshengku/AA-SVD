@@ -728,6 +728,15 @@ def apply_compression_parallel(config: Dict, model: torch.nn.Module, modules_to_
 
     adapter_cls = MODEL_ADAPTER_REGISTRY.get(type(model))
     if adapter_cls is None:
+        adapter_cls = next(
+            (
+                registered_adapter
+                for model_type, registered_adapter in MODEL_ADAPTER_REGISTRY.items()
+                if isinstance(model, model_type)
+            ),
+            None,
+        )
+    if adapter_cls is None:
         raise ValueError(f"No adapter registered for model type {type(model).__name__}. "
                          "Add it to aa_svd/compression/adapters/__init__.py.")
     model_adapter = adapter_cls(model, modules_to_replace)
@@ -907,4 +916,3 @@ def apply_compression_parallel(config: Dict, model: torch.nn.Module, modules_to_
                 module.apply_quantization()
 
     return model
-

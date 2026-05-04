@@ -63,6 +63,7 @@ def load_hf_pretrained(cfg: DictConfig) -> Dict[str, Any]:
         revision=cfg.get("revision", "main"),
         torch_dtype=getattr(torch, cfg.get("dtype", "float32")),
         device_map=cfg.get("device_map", "auto"),
+        trust_remote_code=cfg.get("trust_remote_code", False),
     )
 
     tokenizer = None
@@ -80,6 +81,7 @@ def load_hf_pretrained(cfg: DictConfig) -> Dict[str, Any]:
                 cache_dir=cfg.get("cache_dir"),
                 revision=cfg.get("revision", "main"),
                 use_fast=cfg.get("use_fast_tokenizer", True),
+                trust_remote_code=cfg.get("trust_remote_code", False),
             )
 
     return {"model": model, "tokenizer": tokenizer}
@@ -99,6 +101,7 @@ def load_hf_from_scratch(cfg: DictConfig) -> Dict[str, Any]:
         device_map=cfg.get("device_map", "auto"),
         cache_dir=cfg.get("cache_dir"),
         revision=cfg.get("revision", "main"),
+        trust_remote_code=cfg.get("trust_remote_code", False),
     )
     logger.info(f"Loaded config {config} for model {cfg.name}")
     model = model_cls.from_config(
@@ -113,6 +116,7 @@ def load_hf_from_scratch(cfg: DictConfig) -> Dict[str, Any]:
             cfg.name,
             cache_dir=cfg.get("cache_dir"),
             use_fast=cfg.get("use_fast_tokenizer", True),
+            trust_remote_code=cfg.get("trust_remote_code", False),
         )
 
     return {"model": model, "tokenizer": tokenizer}

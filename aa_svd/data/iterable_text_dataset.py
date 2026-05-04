@@ -1,5 +1,6 @@
 import logging
 import os
+import json
 
 import numpy as np
 import torch
@@ -33,8 +34,9 @@ class TextCalibrationDataset(torch.utils.data.Dataset):
             logger.warning(f"Could not find {self.split}.bin in {data_dir}")
             return
 
+        self.dtype = self._load_dtype()
         len_data_stream = len(
-            np.memmap(self.file_path, dtype=np.uint16, mode='r')
+            np.memmap(self.file_path, dtype=self.dtype, mode='r')
         )
 
         if self.sampling == 'random':
@@ -65,7 +67,7 @@ class TextCalibrationDataset(torch.utils.data.Dataset):
         return self.get_sample(ix)
 
     def get_sample(self, ix):
-        data_stream = np.memmap(self.file_path, dtype=np.uint16, mode='r')
+        data_stream = np.memmap(self.file_path, dtype=self.dtype, mode='r')
         X = torch.from_numpy(
             data_stream[ix:ix + self.block_size].astype(np.int64)
         )
@@ -73,3 +75,12 @@ class TextCalibrationDataset(torch.utils.data.Dataset):
             data_stream[ix + 1:ix + 1 + self.block_size].astype(np.int64)
         )
         return {'input_ids': X, 'targets': Y}
+
+    def _load_dtype(self):
+        meta_path = os.path.join(self.data_dir, "meta.json")
+        if not os.path.exists(meta_path):
+            return np.uint16
+
+        with open(meta_path, "r") as f:
+            meta = json.load(f)
+        return np.dtype(meta.get("dtype", "uint16"))
