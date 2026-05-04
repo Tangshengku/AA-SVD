@@ -57,7 +57,7 @@ python main.py compression.save_path=<path_to_saved_weights> model=llama-7B data
 
 ## Saving
 
-Compressed runs now save a Hugging Face-style model directory by default under the Hydra run directory:
+Compressed runs now save an AA-SVD compressed Hugging Face-style model directory by default under the Hydra run directory:
 
 ```text
 <run_dir>/hf_compressed_model/
@@ -69,6 +69,13 @@ codebase to install those modules before loading the state dict. To change the d
 
 ```bash
 python main.py save.dir=/my/output save.name=my-qwen3-aa-svd
+```
+
+To export a dense checkpoint that can be loaded directly with Hugging Face `from_pretrained`, use either:
+
+```bash
+python main.py save=/my/output/my-qwen3-aa-svd-hf
+python main.py save.dir=/my/output save.name=my-qwen3-aa-svd-hf save.format=hf_dense
 ```
 
 To disable saving:

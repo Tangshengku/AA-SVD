@@ -14,11 +14,25 @@ from omegaconf import DictConfig, OmegaConf
 from aa_svd.utils import setup_seed
 from aa_svd.models import create_model
 from aa_svd.data import create_datasets, get_dataloader
-from aa_svd.compression import apply_compression
+from aa_svd.compression import apply_compression, load_complete_compressed_checkpoint
 from aa_svd.evaluate import evaluate
 from aa_svd.utils.save import save_hf_style_model
 
 logger = logging.getLogger(__name__)
+
+
+def _resolve_save_config(save_cfg):
+    """Support both `save=/path` and the structured `save.dir/name` config."""
+    if isinstance(save_cfg, str):
+        return save_cfg, "hf_dense", True, "5GB"
+
+    save_path = os.path.join(save_cfg.dir, save_cfg.name)
+    save_format = save_cfg.get("format", "hf")
+    if save_cfg.get("dense", False):
+        save_format = "hf_dense"
+    safe_serialization = save_cfg.get("safe_serialization", True)
+    max_shard_size = save_cfg.get("max_shard_size", "5GB")
+    return save_path, save_format, safe_serialization, max_shard_size
 
 
 # Register resolver BEFORE @hydra.main
@@ -55,7 +69,18 @@ def main(cfg: DictConfig) -> None:
     # Apply compression if specified
     if (cfg.get("compression") is not None
             and cfg.compression.get("method") is not None):
-        if cfg.compression.get("need_calibration_data", False):
+        loaded_compressed_checkpoint = load_complete_compressed_checkpoint(
+            model,
+            cfg.compression,
+        )
+
+        if loaded_compressed_checkpoint:
+            logger.info(
+                "Skipping compression and calibration because a complete "
+                "compressed checkpoint was loaded from %s",
+                cfg.compression.save_path,
+            )
+        elif cfg.compression.get("need_calibration_data", False):
             assert tokenizer is not None, (
                 "Tokenizer is required for creating calibration datasets"
             )
@@ -71,14 +96,15 @@ def main(cfg: DictConfig) -> None:
             calibration_dataloader_train = None
             calibration_dataloader_val = None
 
-        model = apply_compression(
-            model, cfg.compression,
-            calibration_dataloader_train=calibration_dataloader_train,
-            calibration_dataloader_val=calibration_dataloader_val,
-            tokenizer=tokenizer
-        )
+        if not loaded_compressed_checkpoint:
+            model = apply_compression(
+                model, cfg.compression,
+                calibration_dataloader_train=calibration_dataloader_train,
+                calibration_dataloader_val=calibration_dataloader_val,
+                tokenizer=tokenizer
+            )
 
-        logger.info(f"Applied compression: {cfg.compression.method}")
+            logger.info(f"Applied compression: {cfg.compression.method}")
 
         gc.collect()
         if torch.cuda.is_available():
@@ -94,15 +120,17 @@ def main(cfg: DictConfig) -> None:
 
     # Save model if specified
     if cfg.get("save") is not None:
-        save_path = os.path.join(cfg.save.dir, cfg.save.name)
-        save_format = cfg.save.get("format", "hf")
-        if save_format == "hf":
+        save_path, save_format, safe_serialization, max_shard_size = (
+            _resolve_save_config(cfg.save)
+        )
+        if save_format in {"hf", "hf_dense"}:
             save_hf_style_model(
                 model,
                 tokenizer,
                 save_path,
-                safe_serialization=cfg.save.get("safe_serialization", True),
-                max_shard_size=cfg.save.get("max_shard_size", "5GB"),
+                safe_serialization=safe_serialization,
+                max_shard_size=max_shard_size,
+                materialize_compressed=(save_format == "hf_dense"),
             )
         elif save_format == "torch":
             torch.save(model.state_dict(), save_path)

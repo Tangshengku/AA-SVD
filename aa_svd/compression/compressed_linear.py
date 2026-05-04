@@ -76,7 +76,7 @@ class CompressedLinear(nn.Module):
         if not os.path.exists(load_path):
             return None
 
-        return torch.load(load_path)
+        return torch.load(load_path, map_location='cpu')
 
     def save(self, path):
         """Saves the U and V matrices to the specified path"""
@@ -804,4 +804,3 @@ class GPTQLinear(nn.Module):
         if bias is not None:
             module.bias.copy_(bias.to(torch.float16))
         return module
-
