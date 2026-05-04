@@ -55,6 +55,28 @@ python main.py compression.save_path=<path_to_saved_weights> model=llama-7B data
 
 > **Note:** The code does not explicitly check that the config matches the original run. A mismatch in model or compression settings may cause silent errors or a crash.
 
+## Saving
+
+Compressed runs now save a Hugging Face-style model directory by default under the Hydra run directory:
+
+```text
+<run_dir>/hf_compressed_model/
+```
+
+The directory includes `config.json`, tokenizer files, sharded model weights, and `aa_svd_compression.json`.
+The weights retain AA-SVD `CompressedLinear` low-rank U/V factors, so reloading the compressed form requires this
+codebase to install those modules before loading the state dict. To change the destination:
+
+```bash
+python main.py save.dir=/my/output save.name=my-qwen3-aa-svd
+```
+
+To disable saving:
+
+```bash
+python main.py save=null
+```
+
 ## Configuration
 
 The project uses [Hydra](https://hydra.cc/) for configuration. The top-level config is [config/config.yaml](config/config.yaml); it composes the following config groups:

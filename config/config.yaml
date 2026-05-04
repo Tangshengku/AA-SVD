@@ -22,7 +22,12 @@ evaluate:
   latency: false
   compile: false
 
-save: null
+save:
+  dir: ${hydra:runtime.output_dir}
+  name: hf_compressed_model
+  format: hf
+  safe_serialization: true
+  max_shard_size: 5GB
 
 wandb:
   use: true

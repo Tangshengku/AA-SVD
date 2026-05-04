@@ -16,6 +16,7 @@ from aa_svd.models import create_model
 from aa_svd.data import create_datasets, get_dataloader
 from aa_svd.compression import apply_compression
 from aa_svd.evaluate import evaluate
+from aa_svd.utils.save import save_hf_style_model
 
 logger = logging.getLogger(__name__)
 
@@ -94,10 +95,19 @@ def main(cfg: DictConfig) -> None:
     # Save model if specified
     if cfg.get("save") is not None:
         save_path = os.path.join(cfg.save.dir, cfg.save.name)
-        if hasattr(model, "save_pretrained"):
-            model.save_pretrained(save_path)
-        else:
+        save_format = cfg.save.get("format", "hf")
+        if save_format == "hf":
+            save_hf_style_model(
+                model,
+                tokenizer,
+                save_path,
+                safe_serialization=cfg.save.get("safe_serialization", True),
+                max_shard_size=cfg.save.get("max_shard_size", "5GB"),
+            )
+        elif save_format == "torch":
             torch.save(model.state_dict(), save_path)
+        else:
+            raise ValueError(f"Unsupported save format: {save_format}")
         logger.info(f"Model saved to {save_path}")
 
 
